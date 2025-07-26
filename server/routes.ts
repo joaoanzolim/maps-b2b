@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, hashPassword } from "./auth";
+import { setupAuth, hashPassword, comparePasswords } from "./auth";
 import { updateUserSchema, loginSchema, createUserSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -69,7 +69,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
       
-      const { comparePasswords } = await import('./auth');
       const isValidPassword = await comparePasswords(currentPassword, user.password);
       if (!isValidPassword) {
         return res.status(400).json({ message: "Senha atual incorreta" });

@@ -10,7 +10,19 @@ import connectPg from "connect-pg-simple";
 
 declare global {
   namespace Express {
-    interface User extends User {}
+    interface User {
+      id: string;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+      profileImageUrl: string | null;
+      role: "admin" | "regular";
+      status: "active" | "blocked";
+      credits: number;
+      creditLimit: number;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+    }
   }
 }
 
@@ -86,36 +98,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
-    try {
-      const { email, password, firstName, lastName, role } = req.body;
-      
-      const existingUser = await storage.getUserByEmail(email);
-      if (existingUser) {
-        return res.status(400).json({ message: "Email já cadastrado" });
-      }
 
-      const hashedPassword = await hashPassword(password);
-      const user = await storage.createUser({
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-        role: role || "regular",
-        status: "active",
-        credits: 0,
-        creditLimit: 100,
-      });
-
-      req.login(user, (err) => {
-        if (err) return next(err);
-        res.status(201).json({ ...user, password: undefined });
-      });
-    } catch (error) {
-      console.error("Registration error:", error);
-      res.status(500).json({ message: "Erro interno do servidor" });
-    }
-  });
 
   app.post("/api/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: User | false, info: any) => {
@@ -142,12 +125,7 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated() || !req.user) {
-      return res.status(401).json({ message: "Não autenticado" });
-    }
-    res.json({ ...req.user, password: undefined });
-  });
+
 }
 
 export { hashPassword, comparePasswords };
