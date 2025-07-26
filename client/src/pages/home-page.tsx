@@ -20,8 +20,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
-import { MapPin, Search, Loader2, History, LogOut, Coins, Download, Clock } from "lucide-react";
+import { MapPin, Search, Loader2, History, LogOut, Coins, Download, Clock, RefreshCw } from "lucide-react";
 import type { Search as SearchType } from "@shared/schema";
+import { API_CONFIG } from "@shared/config";
 
 // Schema for form validation
 const searchSchema = z.object({
@@ -54,6 +55,8 @@ export default function HomePage() {
   const [searchType, setSearchType] = useState<"cep" | "endereco">("cep");
   const [cepData, setCepData] = useState<ViaCepResponse | null>(null);
   const [isSearchingCep, setIsSearchingCep] = useState(false);
+  const [lastStatusUpdate, setLastStatusUpdate] = useState<number>(0);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const form = useForm<SearchData>({
     resolver: zodResolver(searchSchema),
@@ -63,29 +66,11 @@ export default function HomePage() {
     },
   });
 
-  // Fetch user searches with polling for unfinished searches
+  // Fetch user searches (removed automatic polling)
   const { data: searches = [], isLoading: searchesLoading } = useQuery<SearchType[]>({
     queryKey: ["/api/searches"],
     enabled: !!user,
     retry: false,
-    refetchInterval: (data) => {
-      if (!data || !Array.isArray(data)) return false;
-      
-      const now = new Date();
-      const hasUnfinishedSearches = data.some(search => {
-        if (search.finalizado) return false;
-        
-        const searchDate = new Date(search.createdAt);
-        const hoursDiff = (now.getTime() - searchDate.getTime()) / (1000 * 60 * 60);
-        
-        // Don't poll if search is older than 6 hours
-        if (hoursDiff > 6) return false;
-        
-        return true;
-      });
-      
-      return hasUnfinishedSearches ? 30000 : false; // Poll every 30 seconds if there are unfinished searches
-    },
   });
 
   // Fetch search cost setting
@@ -162,11 +147,89 @@ export default function HomePage() {
     setCepData(null);
   };
 
+  // Update status function for unfinished searches
+  const updateSearchStatuses = async () => {
+    const now = Date.now();
+    
+    // Check if 30 seconds have passed since last update
+    if (now - lastStatusUpdate < 30000) {
+      const remainingSeconds = Math.ceil((30000 - (now - lastStatusUpdate)) / 1000);
+      toast({
+        title: "Aguarde",
+        description: `Você pode atualizar novamente em ${remainingSeconds} segundos.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Get unfinished search IDs
+    const unfinishedSearches = searches.filter(search => {
+      if (search.finalizado) return false;
+      
+      const searchDate = new Date(search.createdAt || new Date());
+      const hoursDiff = (now - searchDate.getTime()) / (1000 * 60 * 60);
+      
+      // Don't check searches older than 6 hours
+      return hoursDiff <= 6;
+    });
+
+    if (unfinishedSearches.length === 0) {
+      toast({
+        title: "Nenhuma busca pendente",
+        description: "Todas as buscas foram finalizadas ou expiraram.",
+      });
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    setLastStatusUpdate(now);
+
+    try {
+      const searchIds = unfinishedSearches.map(search => search.searchId).join(',');
+      
+      const response = await fetch(
+        `${API_CONFIG.STATUS_UPDATE_URL}?search_id=${searchIds}`,
+        {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${API_CONFIG.BEARER_TOKEN}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Falha ao atualizar status");
+      }
+
+      // Refresh searches data
+      queryClient.invalidateQueries({ queryKey: ["/api/searches"] });
+      
+      toast({
+        title: "Status atualizado",
+        description: "Status das buscas foi atualizado com sucesso!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na atualização",
+        description: "Não foi possível atualizar o status. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
   // Download function for completed searches
   const downloadSearchResults = async (search: SearchType) => {
     try {
       const response = await fetch(
-        `https://autowebhook.hooks.digital/webhook/3a9d397e-ae0c-4dd8-812e-812e1b8382af?id=${search.id}`
+        `${API_CONFIG.DOWNLOAD_URL}?id=${search.searchId}`,
+        {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${API_CONFIG.BEARER_TOKEN}`,
+          },
+        }
       );
       
       if (!response.ok) {
@@ -222,13 +285,10 @@ export default function HomePage() {
       };
 
       const response = await fetch(
-        "https://autowebhook.hooks.digital/webhook/68770ab5-cdde-45f5-8bee-a419c2926423",
+        API_CONFIG.SEARCH_URL,
         {
           method: "POST",
-          headers: {
-            "Authorization": "Bearer kvsx8XlCnJuFWGfyD7IGPdLG9yh8OjGi",
-            "Content-Type": "application/json",
-          },
+          headers: API_CONFIG.HEADERS,
           body: JSON.stringify(payload),
         }
       );
@@ -307,10 +367,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                Sistema de Busca
+                B2B - Busca de negócios
               </h1>
               <p className="text-gray-600">
-                Busque informações por CEP ou endereço e segmento
+                Encontre negócios com informações detalhadas por IA - integrado a API do Google.
               </p>
             </div>
             
@@ -494,9 +554,30 @@ export default function HomePage() {
           <TabsContent value="history" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Histórico de Buscas
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Histórico de Buscas
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={updateSearchStatuses}
+                    disabled={isUpdatingStatus}
+                    className="flex items-center gap-2"
+                  >
+                    {isUpdatingStatus ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Atualizando...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        Atualizar Status
+                      </>
+                    )}
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
