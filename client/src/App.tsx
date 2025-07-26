@@ -9,33 +9,51 @@ import AdminDashboard from "@/pages/admin-dashboard";
 import HomePage from "@/pages/home-page";
 import BlockedUserPage from "@/pages/blocked-user-page";
 import NotFound from "@/pages/not-found";
+import { useState, useEffect } from "react";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const [currentComponent, setCurrentComponent] = useState<JSX.Element | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Durante o carregamento inicial, mostrar uma div vazia para manter a estrutura
-  if (isLoading) {
-    return <div className="min-h-screen bg-gray-50"></div>;
-  }
+  useEffect(() => {
+    // Se ainda está carregando e não foi inicializado, não muda nada
+    if (isLoading && !isInitialized) {
+      return;
+    }
 
-  // Se usuário não está autenticado, sempre mostrar AuthPage
-  if (!isAuthenticated) {
+    // Marca como inicializado na primeira vez que não está carregando
+    if (!isLoading && !isInitialized) {
+      setIsInitialized(true);
+    }
+
+    // Determina qual componente renderizar
+    let nextComponent: JSX.Element;
+
+    if (!isAuthenticated) {
+      nextComponent = <AuthPage />;
+    } else if (user?.status === "blocked") {
+      nextComponent = <BlockedUserPage />;
+    } else {
+      nextComponent = (
+        <Switch>
+          <Route path="/admin" component={AdminDashboard} />
+          <Route path="/" component={HomePage} />
+          <Route component={NotFound} />
+        </Switch>
+      );
+    }
+
+    setCurrentComponent(nextComponent);
+  }, [isAuthenticated, user, isLoading, isInitialized]);
+
+  // Se ainda não foi inicializado e está carregando, mostra a primeira tela sem flash
+  if (!isInitialized && isLoading) {
     return <AuthPage />;
   }
 
-  // Se usuário está bloqueado, sempre mostrar BlockedUserPage
-  if (user?.status === "blocked") {
-    return <BlockedUserPage />;
-  }
-
-  // Para usuários autenticados e ativos, mostrar roteamento normal
-  return (
-    <Switch>
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/" component={HomePage} />
-      <Route component={NotFound} />
-    </Switch>
-  );
+  // Renderiza o componente atual ou AuthPage como fallback
+  return currentComponent || <AuthPage />;
 }
 
 function App() {
