@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
+import HomePage from "@/pages/home-page";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -31,7 +32,7 @@ function Router() {
           {user?.role === "admin" ? (
             <Route path="/" component={AdminDashboard} />
           ) : (
-            <Route path="/" component={AuthPage} />
+            <Route path="/" component={HomePage} />
           )}
         </>
       )}
