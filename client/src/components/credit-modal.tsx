@@ -1,20 +1,37 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { apiRequest } from "@/lib/queryClient";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Coins } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
 import type { User } from "@shared/schema";
+
+const creditSchema = z.object({
+  amount: z.number().refine((val) => val !== 0, "Quantidade deve ser diferente de 0"),
+  note: z.string().optional(),
+});
+
+type CreditData = z.infer<typeof creditSchema>;
 
 interface CreditModalProps {
   open: boolean;
@@ -25,24 +42,29 @@ interface CreditModalProps {
 export default function CreditModal({ open, onClose, user }: CreditModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [creditAmount, setCreditAmount] = useState("");
 
-  // Update credits mutation
-  const updateCreditsMutation = useMutation({
-    mutationFn: async ({ userId, amount }: { userId: string; amount: number }) => {
-      const response = await apiRequest("POST", `/api/users/${userId}/credits`, {
-        amount,
-      });
+  const form = useForm<CreditData>({
+    resolver: zodResolver(creditSchema),
+    defaultValues: {
+      amount: 0,
+      note: "",
+    },
+  });
+
+  const creditMutation = useMutation({
+    mutationFn: async (data: CreditData) => {
+      const response = await apiRequest("POST", `/api/users/${user?.id}/credits`, data);
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/all"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/stats"] });
       toast({
         title: "Créditos Atualizados",
         description: "Os créditos do usuário foram atualizados com sucesso.",
       });
-      handleClose();
+      form.reset();
+      onClose();
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -58,48 +80,19 @@ export default function CreditModal({ open, onClose, user }: CreditModalProps) {
       }
       toast({
         title: "Erro",
-        description: "Falha ao atualizar créditos.",
+        description: error.message || "Falha ao atualizar créditos.",
         variant: "destructive",
       });
     },
   });
 
+  const onSubmit = (data: CreditData) => {
+    creditMutation.mutate(data);
+  };
+
   const handleClose = () => {
-    setCreditAmount("");
+    form.reset();
     onClose();
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!user) return;
-
-    if (!creditAmount || creditAmount === "0") {
-      toast({
-        title: "Erro",
-        description: "Por favor, insira um valor para os créditos.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const amount = parseInt(creditAmount);
-    if (isNaN(amount)) {
-      toast({
-        title: "Erro",
-        description: "Por favor, insira um valor válido para os créditos.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    updateCreditsMutation.mutate({ userId: user.id, amount });
-  };
-
-  const getInitials = (user: User) => {
-    const firstName = user.firstName || "";
-    const lastName = user.lastName || "";
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U";
   };
 
   if (!user) return null;
@@ -108,65 +101,63 @@ export default function CreditModal({ open, onClose, user }: CreditModalProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <Coins className="h-5 w-5" />
-            <span>Gerenciar Créditos</span>
-          </DialogTitle>
+          <DialogTitle>Gerenciar Créditos</DialogTitle>
+          <p className="text-sm text-gray-600">
+            Usuário: {user.firstName} {user.lastName} | Créditos atuais: {user.credits}
+          </p>
         </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quantidade (use valores negativos para remover)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="Ex: 100 ou -50"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="space-y-6">
-          {/* User Info */}
-          <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={user.profileImageUrl || undefined} />
-              <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium">
-                {getInitials(user)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h3 className="font-medium text-gray-900">
-                {user.firstName} {user.lastName}
-              </h3>
-              <p className="text-sm text-gray-500">{user.email}</p>
-              <p className="text-sm font-medium text-blue-600">
-                Créditos atuais: {user.credits}
-              </p>
-            </div>
-          </div>
-
-          {/* Credit Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="creditAmount">
-                Alterar Créditos (use números positivos para adicionar, negativos para remover)
-              </Label>
-              <Input
-                id="creditAmount"
-                type="number"
-                placeholder="Ex: +50 ou -20"
-                value={creditAmount}
-                onChange={(e) => setCreditAmount(e.target.value)}
-                className="w-full"
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="note"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Observação (opcional)</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Motivo da alteração..."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancelar
               </Button>
-              <Button 
-                type="submit" 
-                disabled={updateCreditsMutation.isPending}
-                className="flex items-center space-x-2"
-              >
-                <Coins className="h-4 w-4" />
-                <span>
-                  {updateCreditsMutation.isPending ? "Atualizando..." : "Atualizar Créditos"}
-                </span>
+              <Button type="submit" disabled={creditMutation.isPending}>
+                {creditMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Atualizar Créditos
               </Button>
             </div>
           </form>
-        </div>
+        </Form>
       </DialogContent>
     </Dialog>
   );

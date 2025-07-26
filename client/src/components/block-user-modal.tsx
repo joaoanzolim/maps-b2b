@@ -3,9 +3,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Ban } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { User } from "@shared/schema";
 
 interface BlockUserModalProps {
@@ -23,58 +24,38 @@ export default function BlockUserModal({
   onConfirm, 
   isLoading 
 }: BlockUserModalProps) {
+  if (!user) return null;
+
+  const isBlocked = user.status === "blocked";
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-            </div>
-            <DialogTitle className="text-lg font-medium text-gray-900">
-              Confirmar Bloqueio
-            </DialogTitle>
-          </div>
+          <DialogTitle>
+            {isBlocked ? "Desbloquear Usuário" : "Bloquear Usuário"}
+          </DialogTitle>
+          <DialogDescription>
+            {isBlocked 
+              ? `Tem certeza que deseja desbloquear o usuário ${user.firstName} ${user.lastName}?`
+              : `Tem certeza que deseja bloquear o usuário ${user.firstName} ${user.lastName}? Esta ação impedirá o usuário de acessar o sistema.`
+            }
+          </DialogDescription>
         </DialogHeader>
-
-        {user && (
-          <div className="space-y-4">
-            <div className="text-center px-4 py-3">
-              <p className="text-sm text-gray-500">
-                Tem certeza que deseja bloquear o usuário{" "}
-                <strong className="text-gray-900">
-                  {user.firstName} {user.lastName}
-                </strong>
-                ? Esta ação impedirá o acesso do usuário ao sistema.
-              </p>
-            </div>
-
-            <div className="flex justify-center space-x-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={isLoading}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={onConfirm}
-                disabled={isLoading}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                ) : (
-                  <Ban className="mr-2 h-4 w-4" />
-                )}
-                Bloquear Usuário
-              </Button>
-            </div>
-          </div>
-        )}
+        
+        <div className="flex justify-end space-x-2">
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button 
+            variant={isBlocked ? "default" : "destructive"} 
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isBlocked ? "Desbloquear" : "Bloquear"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

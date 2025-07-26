@@ -44,6 +44,7 @@ export default function AdminDashboard() {
   const [editUserModalOpen, setEditUserModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("dashboard");
+  const [userFilter, setUserFilter] = useState<"all" | "regular" | "admin">("all");
 
   // Redirect if not admin
   useEffect(() => {
@@ -58,14 +59,19 @@ export default function AdminDashboard() {
   }, [currentUser, isLoading, toast]);
 
   // Fetch users data
-  const { data: users = [], isLoading: usersLoading } = useQuery({
-    queryKey: ["/api/users"],
+  const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
+    queryKey: ["/api/users/all"],
     enabled: !!currentUser && currentUser.role === "admin",
     retry: false,
   });
 
   // Fetch user stats
-  const { data: stats } = useQuery({
+  const { data: stats = {} } = useQuery<{
+    totalUsers: number;
+    activeUsers: number;
+    blockedUsers: number;
+    totalCredits: number;
+  }>({
     queryKey: ["/api/users/stats"],
     enabled: !!currentUser && currentUser.role === "admin",
     retry: false,
@@ -78,7 +84,7 @@ export default function AdminDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/all"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/stats"] });
       setBlockModalOpen(false);
       toast({
@@ -113,7 +119,7 @@ export default function AdminDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/all"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/stats"] });
       toast({
         title: "Usuário Desbloqueado",
@@ -140,10 +146,7 @@ export default function AdminDashboard() {
     },
   });
 
-  const filteredUsers = users.filter((user: User) =>
-    user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+
 
   const handleLogout = async () => {
     try {
@@ -188,6 +191,24 @@ export default function AdminDashboard() {
   const handleUnblockUser = (user: User) => {
     unblockUserMutation.mutate(user.id);
   };
+
+  // Filter users excluding current user
+  const filteredUsers = users
+    .filter((user: User) => user.id !== currentUser?.id) // Exclude current user
+    .filter((user: User) => {
+      // Filter by search query
+      if (searchQuery) {
+        const searchLower = searchQuery.toLowerCase();
+        const nameMatch = `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchLower);
+        const emailMatch = user.email.toLowerCase().includes(searchLower);
+        if (!nameMatch && !emailMatch) return false;
+      }
+      
+      // Filter by user type
+      if (userFilter === "regular") return user.role === "regular";
+      if (userFilter === "admin") return user.role === "admin";
+      return true; // "all"
+    });
 
   // Render functions for different sections
   const renderDashboardContent = () => (
@@ -281,7 +302,32 @@ export default function AdminDashboard() {
     <Card>
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900">Usuários do Sistema</h3>
+          <div className="flex items-center space-x-4">
+            <h3 className="text-lg font-medium text-gray-900">Usuários do Sistema</h3>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={userFilter === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUserFilter("all")}
+              >
+                Todos
+              </Button>
+              <Button
+                variant={userFilter === "regular" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUserFilter("regular")}
+              >
+                Usuários
+              </Button>
+              <Button
+                variant={userFilter === "admin" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUserFilter("admin")}
+              >
+                Admins
+              </Button>
+            </div>
+          </div>
           <div className="flex items-center space-x-3">
             <div className="relative">
               <Input
@@ -368,15 +414,17 @@ export default function AdminDashboard() {
                       <Edit className="h-4 w-4 mr-1" />
                       Editar
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditCredits(user)}
-                      className="text-green-600 hover:text-green-700"
-                    >
-                      <Coins className="h-4 w-4 mr-1" />
-                      Créditos
-                    </Button>
+                    {user.role === "regular" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditCredits(user)}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <Coins className="h-4 w-4 mr-1" />
+                        Créditos
+                      </Button>
+                    )}
                     {user.status === "active" ? (
                       <Button
                         variant="outline"
