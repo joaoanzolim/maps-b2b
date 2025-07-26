@@ -136,7 +136,7 @@ export default function AuthPage() {
                 </TabsTrigger>
                 <TabsTrigger value="create" className="flex items-center space-x-2">
                   <UserPlus className="h-4 w-4" />
-                  <span>Criar Usuário</span>
+                  <span>Fazer Cadastro</span>
                 </TabsTrigger>
               </TabsList>
               
@@ -263,7 +263,7 @@ export default function AuthPage() {
                     ) : (
                       <UserPlus className="mr-2 h-4 w-4" />
                     )}
-                    Criar Usuário
+                    Fazer Cadastro
                   </Button>
                 </form>
               </TabsContent>

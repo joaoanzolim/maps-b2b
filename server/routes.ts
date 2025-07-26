@@ -139,7 +139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.createUser({
         ...userData,
         password: hashedPassword,
-        credits: userData.role === "admin" ? 0 : defaultCredits, // Admin não precisa de créditos
+        credits: userData.role === "admin" ? 0 : defaultCredits, // Admin não recebe créditos, usuários regulares recebem créditos padrão
       });
 
       res.status(201).json({ ...user, password: undefined });
