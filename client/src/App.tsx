@@ -13,30 +13,26 @@ import NotFound from "@/pages/not-found";
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
+  // Não mostrar tela de carregamento se não há dados sendo carregados
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    );
+    return null; // Retorna null em vez de tela de carregamento para evitar flash
   }
 
+  // Se usuário não está autenticado, sempre mostrar AuthPage
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  // Se usuário está bloqueado, sempre mostrar BlockedUserPage
+  if (user?.status === "blocked") {
+    return <BlockedUserPage />;
+  }
+
+  // Para usuários autenticados e ativos, mostrar roteamento normal
   return (
     <Switch>
-      {!isAuthenticated ? (
-        <Route path="/" component={AuthPage} />
-      ) : user?.status === "blocked" ? (
-        // Se usuário estiver bloqueado, sempre redirecionar para página de bloqueado
-        <Route path="*" component={BlockedUserPage} />
-      ) : (
-        <>
-          <Route path="/admin" component={AdminDashboard} />
-          <Route path="/" component={HomePage} />
-        </>
-      )}
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/" component={HomePage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -46,8 +42,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <div className="min-h-screen">
+          <Router />
+          <Toaster />
+        </div>
       </TooltipProvider>
     </QueryClientProvider>
   );
