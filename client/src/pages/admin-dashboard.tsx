@@ -13,6 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import CreditModal from "@/components/credit-modal";
 import BlockUserModal from "@/components/block-user-modal";
 import CreateUserModal from "@/components/create-user-modal";
+import EditUserModal from "@/components/edit-user-modal";
+import SettingsPage from "@/components/settings-page";
 import {
   Users,
   UserCheck,
@@ -26,6 +28,7 @@ import {
   BarChart3,
   Menu,
   LogOut,
+  Settings,
 } from "lucide-react";
 import type { User } from "@shared/schema";
 
@@ -38,6 +41,7 @@ export default function AdminDashboard() {
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("dashboard");
 
@@ -168,6 +172,11 @@ export default function AdminDashboard() {
   const handleEditCredits = (user: User) => {
     setSelectedUser(user);
     setCreditModalOpen(true);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setEditUserModalOpen(true);
   };
 
   const confirmBlockUser = () => {
@@ -353,10 +362,19 @@ export default function AdminDashboard() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleEditUser(user)}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleEditCredits(user)}
                       className="text-green-600 hover:text-green-700"
                     >
-                      <Edit className="h-4 w-4 mr-1" />
+                      <Coins className="h-4 w-4 mr-1" />
                       Créditos
                     </Button>
                     {user.status === "active" ? (
@@ -399,29 +417,7 @@ export default function AdminDashboard() {
     </Card>
   );
 
-  const renderCreditsContent = () => (
-    <Card>
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900">Gestão de Créditos</h3>
-      </div>
-      <CardContent className="p-6">
-        <div className="text-center">
-          <Coins className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Gestão de Créditos</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Para gerenciar créditos de usuários específicos, vá para a seção "Gerenciar Usuários" e clique no botão "Créditos" do usuário desejado.
-          </p>
-          <Button 
-            onClick={() => setActiveSection("users")}
-            className="mt-4"
-          >
-            <Users className="mr-2 h-4 w-4" />
-            Ir para Usuários
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
+
 
   const renderReportsContent = () => (
     <Card>
@@ -497,17 +493,17 @@ export default function AdminDashboard() {
               Gerenciar Usuários
             </button>
             <button 
-              onClick={() => setActiveSection("credits")}
+              onClick={() => setActiveSection("settings")}
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeSection === "credits" 
+                activeSection === "settings" 
                   ? "bg-blue-50 text-blue-700" 
                   : "text-gray-700 hover:bg-gray-50"
               }`}
             >
-              <Coins className={`mr-3 h-5 w-5 ${
-                activeSection === "credits" ? "text-blue-500" : "text-gray-400"
+              <Settings className={`mr-3 h-5 w-5 ${
+                activeSection === "settings" ? "text-blue-500" : "text-gray-400"
               }`} />
-              Créditos
+              Configurações
             </button>
             <button 
               onClick={() => setActiveSection("reports")}
@@ -570,7 +566,7 @@ export default function AdminDashboard() {
                 <h1 className="ml-4 lg:ml-0 text-2xl font-semibold text-gray-900">
                   {activeSection === "dashboard" && "Dashboard"}
                   {activeSection === "users" && "Gerenciamento de Usuários"}
-                  {activeSection === "credits" && "Gestão de Créditos"}
+                  {activeSection === "settings" && "Configurações"}
                   {activeSection === "reports" && "Relatórios"}
                 </h1>
               </div>
@@ -594,7 +590,7 @@ export default function AdminDashboard() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {activeSection === "dashboard" && renderDashboardContent()}
             {activeSection === "users" && renderUsersContent()} 
-            {activeSection === "credits" && renderCreditsContent()}
+            {activeSection === "settings" && <SettingsPage />}
             {activeSection === "reports" && renderReportsContent()}
           </div>
         </main>
@@ -626,6 +622,12 @@ export default function AdminDashboard() {
       <CreateUserModal
         open={createUserModalOpen}
         onClose={() => setCreateUserModalOpen(false)}
+      />
+      
+      <EditUserModal
+        open={editUserModalOpen}
+        onClose={() => setEditUserModalOpen(false)}
+        user={selectedUser}
       />
     </div>
   );

@@ -37,6 +37,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ...req.user, password: undefined });
   });
 
+  // Update user profile (own profile)
+  app.put('/api/user/profile', isAuthenticated, async (req: any, res) => {
+    try {
+      const { firstName, lastName } = req.body;
+      
+      if (!firstName || !lastName) {
+        return res.status(400).json({ message: "Nome e sobrenome são obrigatórios" });
+      }
+      
+      const user = await storage.updateUser(req.user.id, { firstName, lastName });
+      res.json({ ...user, password: undefined });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      res.status(500).json({ message: "Falha ao atualizar perfil" });
+    }
+  });
+
+  // Update user password (own password)
+  app.put('/api/user/password', isAuthenticated, async (req: any, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Senha atual e nova senha são obrigatórias" });
+      }
+      
+      // Verify current password
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      const { comparePasswords } = await import('./auth');
+      const isValidPassword = await comparePasswords(currentPassword, user.password);
+      if (!isValidPassword) {
+        return res.status(400).json({ message: "Senha atual incorreta" });
+      }
+      
+      // Hash new password and update
+      const hashedPassword = await hashPassword(newPassword);
+      await storage.updateUserPassword(req.user.id, hashedPassword);
+      
+      res.json({ message: "Senha atualizada com sucesso" });
+    } catch (error) {
+      console.error("Error updating password:", error);
+      res.status(500).json({ message: "Falha ao alterar senha" });
+    }
+  });
+
   // User creation route (admin only)
   app.post("/api/users", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
@@ -86,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/users/:id", isAuthenticated, isAdmin, async (req: any, res) => {
+  app.put("/api/users/:id", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       const userData = updateUserSchema.parse(req.body);
