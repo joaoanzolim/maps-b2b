@@ -57,6 +57,7 @@ export default function HomePage() {
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [lastStatusUpdate, setLastStatusUpdate] = useState<number>(0);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
   const form = useForm<SearchData>({
     resolver: zodResolver(searchSchema),
@@ -67,14 +68,14 @@ export default function HomePage() {
   });
 
   // Fetch user searches (removed automatic polling)
-  const { data: searches = [], isLoading: searchesLoading } = useQuery<SearchType[]>({
+  const { data: searches = [], isLoading: searchesLoading, refetch: refetchSearches } = useQuery<SearchType[]>({
     queryKey: ["/api/searches"],
     enabled: !!user,
     retry: false,
   });
 
   // Fetch search cost setting
-  const { data: searchCost = 10 } = useQuery<number>({
+  const { data: searchCost = 10, isLoading: searchCostLoading } = useQuery<number>({
     queryKey: ["/api/settings/search-cost"],
     enabled: !!user,
     retry: false,
@@ -188,7 +189,7 @@ export default function HomePage() {
       const searchIds = unfinishedSearches.map(search => search.searchId).join(',');
       
       const response = await fetch(
-        `${API_CONFIG.STATUS_UPDATE_URL}?search_id=${searchIds}`,
+        `${API_CONFIG.STATUS_UPDATE_URL}?id=${searchIds}`,
         {
           method: "GET",
           headers: {
@@ -221,6 +222,7 @@ export default function HomePage() {
 
   // Download function for completed searches
   const downloadSearchResults = async (search: SearchType) => {
+    setIsDownloading(search.id);
     try {
       const response = await fetch(
         `${API_CONFIG.DOWNLOAD_URL}?id=${search.searchId}`,
@@ -244,7 +246,7 @@ export default function HomePage() {
       // Format filename: [SEGMENTO] - Endereço Completo - DD-MM-YYYY
       const date = new Date(search.createdAt || new Date());
       const formattedDate = date.toLocaleDateString("pt-BR").replace(/\//g, "-");
-      link.download = `[${search.segment}] - ${search.address} - ${formattedDate}.xlsx`;
+      link.download = `${search.segment} - ${search.address} - ${formattedDate}.xlsx`;
       
       document.body.appendChild(link);
       link.click();
@@ -261,14 +263,16 @@ export default function HomePage() {
         description: "Não foi possível baixar o arquivo. Tente novamente.",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(null);
     }
   };
 
   // Search mutation
   const searchMutation = useMutation({
     mutationFn: async (data: SearchData) => {
-      // Check if user has enough credits
-      if (!user || user.credits < searchCost) {
+      // Check if user has enough credits (except for admin)
+      if (!user || (user.role !== "admin" && user.credits < searchCost)) {
         throw new Error("Créditos insuficientes para realizar a busca");
       }
 
@@ -305,7 +309,7 @@ export default function HomePage() {
           searchId: result.id,
           address: addressToSend,
           segment: data.segment,
-          creditsUsed: searchCost,
+          creditsUsed: user.role === "admin" ? 0 : searchCost,
         });
       }
 
@@ -363,9 +367,9 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
+        <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="text-left">
               <h1 className="text-4xl font-bold text-gray-900 mb-2">
                 B2B - Busca de negócios
               </h1>
@@ -378,20 +382,34 @@ export default function HomePage() {
               <div className="flex items-center space-x-4">
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Bem-vindo, {user.firstName}!</p>
-                  <div className="flex items-center text-blue-600 font-medium">
-                    <Coins className="h-4 w-4 mr-1" />
-                    {user.credits} créditos
-                  </div>
+                  {user.role !== "admin" && (
+                    <div className="flex items-center text-blue-600 font-medium">
+                      <Coins className="h-4 w-4 mr-1" />
+                      {user.credits} créditos
+                    </div>
+                  )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="flex items-center"
-                >
-                  <LogOut className="h-4 w-4 mr-1" />
-                  Sair
-                </Button>
+                <div className="flex items-center space-x-2">
+                  {user.role === "admin" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.location.href = "/admin"}
+                      className="flex items-center"
+                    >
+                      Dashboard
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="flex items-center"
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    Sair
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -622,9 +640,14 @@ export default function HomePage() {
                                       size="sm"
                                       variant="outline"
                                       onClick={() => downloadSearchResults(search)}
+                                      disabled={isDownloading === search.id}
                                       className="p-1 h-8 w-8"
                                     >
-                                      <Download className="h-4 w-4" />
+                                      {isDownloading === search.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Download className="h-4 w-4" />
+                                      )}
                                     </Button>
                                   </>
                                 ) : isOldSearch ? (

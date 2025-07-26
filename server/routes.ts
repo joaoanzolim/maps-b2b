@@ -307,6 +307,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Default credits settings
+  app.get("/api/settings/default-credits", isAuthenticated, async (req, res) => {
+    try {
+      const setting = await storage.getSystemSetting("default_credits");
+      const credits = setting?.value ? parseInt(setting.value) : 100;
+      res.json(credits);
+    } catch (error) {
+      console.error("Error fetching default credits:", error);
+      res.status(500).json({ message: "Failed to fetch default credits" });
+    }
+  });
+
+  app.post("/api/settings/default-credits", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { credits } = req.body;
+      if (credits === undefined || credits < 0) {
+        return res.status(400).json({ message: "Credits must be a non-negative number" });
+      }
+
+      const setting = await storage.setSystemSetting("default_credits", credits.toString());
+      res.json(setting);
+    } catch (error) {
+      console.error("Error setting default credits:", error);
+      res.status(500).json({ message: "Failed to set default credits" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

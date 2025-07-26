@@ -38,9 +38,14 @@ const searchCostSchema = z.object({
   cost: z.number().min(1, "Custo deve ser maior que 0").max(1000, "Custo máximo é 1000"),
 });
 
+const defaultCreditsSchema = z.object({
+  credits: z.number().min(0, "Créditos não podem ser negativos").max(10000, "Máximo de 10000 créditos"),
+});
+
 type ProfileData = z.infer<typeof profileSchema>;
 type PasswordData = z.infer<typeof passwordSchema>;
 type SearchCostData = z.infer<typeof searchCostSchema>;
+type DefaultCreditsData = z.infer<typeof defaultCreditsSchema>;
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -50,6 +55,13 @@ export default function SettingsPage() {
   // Fetch current search cost
   const { data: currentSearchCost = 10, isLoading: searchCostLoading } = useQuery<number>({
     queryKey: ["/api/settings/search-cost"],
+    enabled: user?.role === "admin",
+    retry: false,
+  });
+
+  // Fetch current default credits
+  const { data: currentDefaultCredits = 100, isLoading: defaultCreditsLoading } = useQuery<number>({
+    queryKey: ["/api/settings/default-credits"],
     enabled: user?.role === "admin",
     retry: false,
   });
@@ -75,6 +87,13 @@ export default function SettingsPage() {
     resolver: zodResolver(searchCostSchema),
     defaultValues: {
       cost: currentSearchCost,
+    },
+  });
+
+  const defaultCreditsForm = useForm<DefaultCreditsData>({
+    resolver: zodResolver(defaultCreditsSchema),
+    defaultValues: {
+      credits: currentDefaultCredits,
     },
   });
 
@@ -155,7 +174,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/search-cost"] });
       toast({
-        title: "Configuração Atualizada",
+        title: "Configurações do sistema atualizada com sucesso",
         description: "O custo por busca foi atualizado com sucesso.",
       });
     },
@@ -179,6 +198,38 @@ export default function SettingsPage() {
     },
   });
 
+  const updateDefaultCreditsMutation = useMutation({
+    mutationFn: async (data: DefaultCreditsData) => {
+      const response = await apiRequest("POST", "/api/settings/default-credits", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/default-credits"] });
+      toast({
+        title: "Configurações do sistema atualizada com sucesso",
+        description: "Os créditos padrão foram atualizados com sucesso.",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Não autorizado",
+          description: "Você foi desconectado. Redirecionando...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar créditos padrão.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onProfileSubmit = (data: ProfileData) => {
     updateProfileMutation.mutate(data);
   };
@@ -189,6 +240,10 @@ export default function SettingsPage() {
 
   const onSearchCostSubmit = (data: SearchCostData) => {
     updateSearchCostMutation.mutate(data);
+  };
+
+  const onDefaultCreditsSubmit = (data: DefaultCreditsData) => {
+    updateDefaultCreditsMutation.mutate(data);
   };
 
   return (
@@ -331,7 +386,7 @@ export default function SettingsPage() {
               Configurações do Sistema
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
             <Form {...searchCostForm}>
               <form onSubmit={searchCostForm.handleSubmit(onSearchCostSubmit)} className="space-y-4">
                 <FormField
@@ -371,7 +426,54 @@ export default function SettingsPage() {
                       Atualizando...
                     </>
                   ) : (
-                    "Atualizar Configuração"
+                    "Atualizar Custo"
+                  )}
+                </Button>
+              </form>
+            </Form>
+
+            <Separator />
+
+            <Form {...defaultCreditsForm}>
+              <form onSubmit={defaultCreditsForm.handleSubmit(onDefaultCreditsSubmit)} className="space-y-4">
+                <FormField
+                  control={defaultCreditsForm.control}
+                  name="credits"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Coins className="h-4 w-4" />
+                        Créditos Padrão para Novos Usuários
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Digite a quantidade de créditos"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          min={0}
+                          max={10000}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-sm text-gray-500">
+                        Quantidade de créditos que cada novo usuário receberá ao se cadastrar no sistema.
+                      </p>
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="submit"
+                  disabled={updateDefaultCreditsMutation.isPending || defaultCreditsLoading}
+                  className="w-full md:w-auto"
+                >
+                  {updateDefaultCreditsMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Atualizando...
+                    </>
+                  ) : (
+                    "Atualizar Créditos Padrão"
                   )}
                 </Button>
               </form>

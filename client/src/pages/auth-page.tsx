@@ -163,12 +163,7 @@ export default function AuthPage() {
                   </Button>
                 </form>
                 
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-gray-600">
-                    Usuário admin padrão: <br />
-                    <strong>admin@sistema.com</strong> / <strong>admin123</strong>
-                  </p>
-                </div>
+
               </TabsContent>
               
               <TabsContent value="create" className="space-y-4 mt-6">
