@@ -243,6 +243,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Search routes
+  app.post("/api/searches", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const searchData = req.body;
+      
+      // Deduct credits from user
+      await storage.updateUserCredits(userId, -searchData.creditsUsed, userId, "Busca realizada");
+      
+      // Create search record
+      const search = await storage.createSearch({
+        ...searchData,
+        userId,
+      });
+      
+      res.status(201).json(search);
+    } catch (error) {
+      console.error("Error creating search:", error);
+      res.status(500).json({ message: "Failed to create search" });
+    }
+  });
+
+  app.get("/api/searches", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const searches = await storage.getUserSearches(userId);
+      res.json(searches);
+    } catch (error) {
+      console.error("Error fetching searches:", error);
+      res.status(500).json({ message: "Failed to fetch searches" });
+    }
+  });
+
+  // System settings routes
+  app.get("/api/settings/search-cost", isAuthenticated, async (req, res) => {
+    try {
+      const setting = await storage.getSystemSetting("search_cost");
+      const cost = setting?.value ? parseInt(setting.value) : 10;
+      res.json(cost);
+    } catch (error) {
+      console.error("Error fetching search cost:", error);
+      res.status(500).json({ message: "Failed to fetch search cost" });
+    }
+  });
+
+  app.post("/api/settings/search-cost", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { cost } = req.body;
+      if (!cost || cost < 1) {
+        return res.status(400).json({ message: "Cost must be a positive number" });
+      }
+
+      const setting = await storage.setSystemSetting("search_cost", cost.toString());
+      res.json(setting);
+    } catch (error) {
+      console.error("Error setting search cost:", error);
+      res.status(500).json({ message: "Failed to set search cost" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

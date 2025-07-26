@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -16,7 +18,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { MapPin, Search, ToggleLeft, ToggleRight, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
+import { MapPin, Search, Loader2, History, LogOut, Coins } from "lucide-react";
+import type { Search as SearchType } from "@shared/schema";
 
 // Schema for form validation
 const searchSchema = z.object({
@@ -44,11 +49,11 @@ interface ViaCepResponse {
 
 export default function HomePage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [searchType, setSearchType] = useState<"cep" | "endereco">("cep");
   const [cepData, setCepData] = useState<ViaCepResponse | null>(null);
   const [isSearchingCep, setIsSearchingCep] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<any>(null);
 
   const form = useForm<SearchData>({
     resolver: zodResolver(searchSchema),
@@ -56,6 +61,20 @@ export default function HomePage() {
       address: "",
       segment: "",
     },
+  });
+
+  // Fetch user searches
+  const { data: searches = [], isLoading: searchesLoading } = useQuery<SearchType[]>({
+    queryKey: ["/api/searches"],
+    enabled: !!user,
+    retry: false,
+  });
+
+  // Fetch search cost setting
+  const { data: searchCost = 10 } = useQuery<number>({
+    queryKey: ["/api/settings/search-cost"],
+    enabled: !!user,
+    retry: false,
   });
 
   // Format CEP mask
@@ -86,8 +105,6 @@ export default function HomePage() {
       }
 
       setCepData(data);
-      const formattedAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf} - Brasil`;
-      form.setValue("address", formattedAddress);
       
       toast({
         title: "CEP encontrado",
@@ -121,19 +138,28 @@ export default function HomePage() {
   };
 
   // Toggle between CEP and address
-  const toggleSearchType = () => {
-    const newType = searchType === "cep" ? "endereco" : "cep";
-    setSearchType(newType);
+  const toggleSearchType = (type: "cep" | "endereco") => {
+    setSearchType(type);
     form.setValue("address", "");
     setCepData(null);
   };
 
-  // Perform main search
-  const onSubmit = async (data: SearchData) => {
-    setIsSearching(true);
-    try {
+  // Search mutation
+  const searchMutation = useMutation({
+    mutationFn: async (data: SearchData) => {
+      // Check if user has enough credits
+      if (!user || user.credits < searchCost) {
+        throw new Error("Créditos insuficientes para realizar a busca");
+      }
+
+      // Determine the address to send
+      let addressToSend = data.address;
+      if (searchType === "cep" && cepData) {
+        addressToSend = `${cepData.logradouro}, ${cepData.bairro}, ${cepData.localidade}, ${cepData.uf} - Brasil`;
+      }
+
       const payload = {
-        endereco: data.address,
+        endereco: addressToSend,
         query: data.segment,
         cep: searchType === "cep" ? data.address.replace(/\D/g, "") : "",
       };
@@ -155,20 +181,58 @@ export default function HomePage() {
       }
 
       const result = await response.json();
-      setSearchResult(result);
       
-      toast({
-        title: "Busca realizada com sucesso",
-        description: "Os dados foram encontrados!",
-      });
-    } catch (error) {
+      if (result.success) {
+        // Record search in database
+        await apiRequest("POST", "/api/searches", {
+          searchId: result.id,
+          address: addressToSend,
+          segment: data.segment,
+          creditsUsed: searchCost,
+        });
+      }
+
+      return result;
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/searches"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+        toast({
+          title: "Busca realizada com sucesso",
+          description: `Busca concluída! ${searchCost} créditos foram utilizados.`,
+        });
+      } else {
+        toast({
+          title: "Erro na busca",
+          description: "A busca não foi bem-sucedida.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
       toast({
         title: "Erro na busca",
-        description: "Não foi possível realizar a busca. Tente novamente.",
+        description: error.message || "Não foi possível realizar a busca.",
         variant: "destructive",
       });
-    } finally {
-      setIsSearching(false);
+    },
+  });
+
+  const onSubmit = (data: SearchData) => {
+    searchMutation.mutate(data);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/logout");
+      window.location.href = "/";
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao fazer logout.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -176,183 +240,244 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Sistema de Busca
-          </h1>
-          <p className="text-gray-600">
-            Busque informações por CEP ou endereço e segmento
-          </p>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Search Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Realizar Busca
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  {/* Address/CEP Field */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <FormLabel>
-                        {searchType === "cep" ? "CEP" : "Endereço"}
-                      </FormLabel>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={toggleSearchType}
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        {searchType === "cep" ? (
-                          <>
-                            <ToggleLeft className="h-4 w-4 mr-1" />
-                            Usar Endereço
-                          </>
-                        ) : (
-                          <>
-                            <ToggleRight className="h-4 w-4 mr-1" />
-                            Usar CEP
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    
-                    <FormField
-                      control={form.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                placeholder={
-                                  searchType === "cep" 
-                                    ? "00000-000" 
-                                    : "Digite o endereço completo"
-                                }
-                                {...field}
-                                onChange={(e) => handleAddressChange(e.target.value)}
-                                maxLength={searchType === "cep" ? 9 : undefined}
-                              />
-                              {isSearchingCep && (
-                                <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-gray-400" />
-                              )}
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                Sistema de Busca
+              </h1>
+              <p className="text-gray-600">
+                Busque informações por CEP ou endereço e segmento
+              </p>
+            </div>
+            
+            {user && (
+              <div className="flex items-center space-x-4">
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Bem-vindo, {user.firstName}!</p>
+                  <div className="flex items-center text-blue-600 font-medium">
+                    <Coins className="h-4 w-4 mr-1" />
+                    {user.credits} créditos
                   </div>
-
-                  {/* Segment Field */}
-                  <FormField
-                    control={form.control}
-                    name="segment"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Segmento</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Digite o segmento (máx. 75 caracteres)"
-                            {...field}
-                            maxLength={75}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                        <p className="text-xs text-gray-500">
-                          {field.value?.length || 0}/75 caracteres
-                        </p>
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={isSearching}
-                  >
-                    {isSearching ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Realizando busca...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="mr-2 h-4 w-4" />
-                        Realizar Busca
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-
-          {/* Results */}
-          <div className="space-y-6">
-            {/* CEP Data */}
-            {cepData && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Dados do CEP
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div>
-                      <Badge variant="outline" className="mb-2">
-                        CEP: {cepData.cep}
-                      </Badge>
-                      <p className="text-sm font-medium">
-                        {cepData.logradouro}, {cepData.bairro}, {cepData.localidade}, {cepData.uf} - Brasil
-                      </p>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="font-medium">Estado:</span> {cepData.estado}
-                      </div>
-                      <div>
-                        <span className="font-medium">Região:</span> {cepData.regiao}
-                      </div>
-                      <div>
-                        <span className="font-medium">DDD:</span> {cepData.ddd}
-                      </div>
-                      <div>
-                        <span className="font-medium">IBGE:</span> {cepData.ibge}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Search Results */}
-            {searchResult && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Resultado da Busca</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="bg-gray-100 p-4 rounded-md text-xs overflow-auto">
-                    {JSON.stringify(searchResult, null, 2)}
-                  </pre>
-                </CardContent>
-              </Card>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="flex items-center"
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Sair
+                </Button>
+              </div>
             )}
           </div>
         </div>
+
+        <Tabs defaultValue="search" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="search">Realizar Busca</TabsTrigger>
+            <TabsTrigger value="history">Histórico de Buscas</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="search" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Search Form */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Search className="h-5 w-5" />
+                    Realizar Busca
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                      {/* Address/CEP Field */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <FormLabel>
+                            {searchType === "cep" ? "CEP" : "Endereço"}
+                          </FormLabel>
+                          <Tabs value={searchType} onValueChange={(value) => toggleSearchType(value as "cep" | "endereco")} className="w-auto">
+                            <TabsList className="grid w-full grid-cols-2">
+                              <TabsTrigger value="cep" className="text-xs">CEP</TabsTrigger>
+                              <TabsTrigger value="endereco" className="text-xs">Endereço</TabsTrigger>
+                            </TabsList>
+                          </Tabs>
+                        </div>
+                        
+                        <FormField
+                          control={form.control}
+                          name="address"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <div className="relative">
+                                  <Input
+                                    placeholder={
+                                      searchType === "cep" 
+                                        ? "00000-000" 
+                                        : "Digite o endereço completo"
+                                    }
+                                    {...field}
+                                    onChange={(e) => handleAddressChange(e.target.value)}
+                                    maxLength={searchType === "cep" ? 9 : undefined}
+                                  />
+                                  {isSearchingCep && (
+                                    <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-gray-400" />
+                                  )}
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {/* Segment Field */}
+                      <FormField
+                        control={form.control}
+                        name="segment"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Segmento</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Digite o segmento (máx. 75 caracteres)"
+                                {...field}
+                                maxLength={75}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                            <p className="text-xs text-gray-500">
+                              {field.value?.length || 0}/75 caracteres
+                            </p>
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={searchMutation.isPending || (user && user.credits < searchCost)}
+                      >
+                        {searchMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Realizando busca...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="mr-2 h-4 w-4" />
+                            Realizar Busca ({searchCost} créditos)
+                          </>
+                        )}
+                      </Button>
+                      
+                      {user && user.credits < searchCost && (
+                        <p className="text-sm text-red-600 text-center">
+                          Créditos insuficientes. Você possui {user.credits} créditos.
+                        </p>
+                      )}
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+
+              {/* CEP Data */}
+              {cepData && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5" />
+                      Dados do CEP
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div>
+                        <Badge variant="outline" className="mb-2">
+                          CEP: {cepData.cep}
+                        </Badge>
+                        <p className="text-sm font-medium">
+                          {cepData.logradouro}, {cepData.bairro}, {cepData.localidade}, {cepData.uf} - Brasil
+                        </p>
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="font-medium">Estado:</span> {cepData.estado}
+                        </div>
+                        <div>
+                          <span className="font-medium">Região:</span> {cepData.regiao}
+                        </div>
+                        <div>
+                          <span className="font-medium">DDD:</span> {cepData.ddd}
+                        </div>
+                        <div>
+                          <span className="font-medium">IBGE:</span> {cepData.ibge}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="history" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Histórico de Buscas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {searchesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-600">Carregando histórico...</span>
+                  </div>
+                ) : searches.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <History className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>Nenhuma busca realizada ainda</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {searches.map((search: SearchType) => (
+                      <div key={search.id} className="border rounded-lg p-4 space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{search.address}</p>
+                            <p className="text-sm text-gray-600">Segmento: {search.segment}</p>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="outline" className="mb-1">
+                              -{search.creditsUsed} créditos
+                            </Badge>
+                            <p className="text-xs text-gray-500">
+                              {search.createdAt ? new Date(search.createdAt).toLocaleString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : '-'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

@@ -1,12 +1,18 @@
 import {
   users,
   creditTransactions,
+  searches,
+  systemSettings,
   type User,
   type InsertUser,
   type UpdateUser,
   type CreateUserData,
   type CreditTransaction,
   type InsertCreditTransaction,
+  type Search,
+  type InsertSearch,
+  type SystemSetting,
+  type InsertSystemSetting,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, count, sql } from "drizzle-orm";
@@ -38,6 +44,14 @@ export interface IStorage {
   // User status operations
   blockUser(userId: string): Promise<User>;
   unblockUser(userId: string): Promise<User>;
+  
+  // Search operations
+  createSearch(search: InsertSearch): Promise<Search>;
+  getUserSearches(userId: string): Promise<Search[]>;
+  
+  // System settings operations
+  getSystemSetting(key: string): Promise<SystemSetting | undefined>;
+  setSystemSetting(key: string, value: string): Promise<SystemSetting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -176,6 +190,46 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return user;
+  }
+
+  // Search operations
+  
+  async createSearch(searchData: InsertSearch): Promise<Search> {
+    const [search] = await db
+      .insert(searches)
+      .values(searchData)
+      .returning();
+    return search;
+  }
+
+  async getUserSearches(userId: string): Promise<Search[]> {
+    return await db
+      .select()
+      .from(searches)
+      .where(eq(searches.userId, userId))
+      .orderBy(desc(searches.createdAt));
+  }
+
+  // System settings operations
+  
+  async getSystemSetting(key: string): Promise<SystemSetting | undefined> {
+    const [setting] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key));
+    return setting;
+  }
+
+  async setSystemSetting(key: string, value: string): Promise<SystemSetting> {
+    const [setting] = await db
+      .insert(systemSettings)
+      .values({ key, value })
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: { value, updatedAt: new Date() }
+      })
+      .returning();
+    return setting;
   }
 }
 

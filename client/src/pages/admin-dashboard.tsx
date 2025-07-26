@@ -29,6 +29,7 @@ import {
   Menu,
   LogOut,
   Settings,
+  MapPin,
 } from "lucide-react";
 import type { User } from "@shared/schema";
 
@@ -565,6 +566,13 @@ export default function AdminDashboard() {
                 activeSection === "reports" ? "text-blue-500" : "text-gray-400"
               }`} />
               Relatórios
+            </button>
+            <button 
+              onClick={() => window.location.href = "/"}
+              className="w-full group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
+            >
+              <MapPin className="mr-3 h-5 w-5 text-gray-400" />
+              Acessar B2B
             </button>
           </div>
           

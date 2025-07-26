@@ -58,6 +58,25 @@ export const creditTransactions = pgTable("credit_transactions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Search history table for tracking user searches
+export const searches = pgTable("searches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  searchId: varchar("search_id").notNull(), // ID returned from API
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  address: text("address").notNull(),
+  segment: text("segment").notNull(),
+  creditsUsed: integer("credits_used").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// System settings table for configuration
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key").unique().notNull(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -89,6 +108,16 @@ export const insertCreditTransactionSchema = createInsertSchema(creditTransactio
   createdAt: true,
 });
 
+export const insertSearchSchema = createInsertSchema(searches).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
@@ -96,3 +125,7 @@ export type LoginData = z.infer<typeof loginSchema>;
 export type CreateUserData = z.infer<typeof createUserSchema>;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
 export type InsertCreditTransaction = z.infer<typeof insertCreditTransactionSchema>;
+export type Search = typeof searches.$inferSelect;
+export type InsertSearch = z.infer<typeof insertSearchSchema>;
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
