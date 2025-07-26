@@ -1,52 +1,78 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { updateUserSchema, insertCreditTransactionSchema } from "@shared/schema";
+import { setupAuth, hashPassword } from "./auth";
+import { updateUserSchema, loginSchema, createUserSchema } from "@shared/schema";
 import { z } from "zod";
+
+// Authentication middleware
+const isAuthenticated = (req: any, res: any, next: any) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  next();
+};
+
+// Admin middleware
+const isAdmin = async (req: any, res: any, next: any) => {
+  try {
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Acesso de administrador necessário" });
+    }
+    
+    req.adminUser = req.user;
+    next();
+  } catch (error) {
+    console.error("Error checking admin status:", error);
+    res.status(500).json({ message: "Falha ao verificar status de administrador" });
+  }
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
-  await setupAuth(app);
+  setupAuth(app);
 
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
+  // Get current user route
+  app.get('/api/user', isAuthenticated, (req: any, res) => {
+    res.json({ ...req.user, password: undefined });
   });
 
-  // Admin middleware
-  const isAdmin = async (req: any, res: any, next: any) => {
+  // User creation route (admin only)
+  app.post("/api/users", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const userData = createUserSchema.parse(req.body);
       
-      if (!user || user.role !== "admin") {
-        return res.status(403).json({ message: "Admin access required" });
+      const existingUser = await storage.getUserByEmail(userData.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email já cadastrado" });
       }
-      
-      req.adminUser = user;
-      next();
+
+      const hashedPassword = await hashPassword(userData.password);
+      const user = await storage.createUser({
+        ...userData,
+        password: hashedPassword,
+      });
+
+      res.status(201).json({ ...user, password: undefined });
     } catch (error) {
-      console.error("Error checking admin status:", error);
-      res.status(500).json({ message: "Failed to verify admin status" });
+      console.error("Error creating user:", error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      } else {
+        res.status(500).json({ message: "Falha ao criar usuário" });
+      }
     }
-  };
+  });
 
   // User management routes (admin only)
   app.get("/api/users", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const users = await storage.getRegularUsers();
-      res.json(users);
+      const sanitizedUsers = users.map(user => ({ ...user, password: undefined }));
+      res.json(sanitizedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
-      res.status(500).json({ message: "Failed to fetch users" });
+      res.status(500).json({ message: "Falha ao buscar usuários" });
     }
   });
 
@@ -56,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       console.error("Error fetching user stats:", error);
-      res.status(500).json({ message: "Failed to fetch user stats" });
+      res.status(500).json({ message: "Falha ao buscar estatísticas" });
     }
   });
 
@@ -66,13 +92,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userData = updateUserSchema.parse(req.body);
       
       const user = await storage.updateUser(id, userData);
-      res.json(user);
+      res.json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error updating user:", error);
       if (error instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid user data", errors: error.errors });
+        res.status(400).json({ message: "Dados inválidos", errors: error.errors });
       } else {
-        res.status(500).json({ message: "Failed to update user" });
+        res.status(500).json({ message: "Falha ao atualizar usuário" });
       }
     }
   });
@@ -89,10 +115,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const adminId = req.adminUser.id;
       const user = await storage.updateUserCredits(id, amount, adminId, note);
-      res.json(user);
+      res.json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error updating user credits:", error);
-      res.status(500).json({ message: "Failed to update user credits" });
+      res.status(500).json({ message: "Falha ao atualizar créditos do usuário" });
     }
   });
 
@@ -102,14 +128,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { limit } = req.body;
       
       if (typeof limit !== "number" || limit < 0) {
-        return res.status(400).json({ message: "Credit limit must be a non-negative number" });
+        return res.status(400).json({ message: "Limite de créditos deve ser um número não negativo" });
       }
       
       const user = await storage.updateUserCreditLimit(id, limit);
-      res.json(user);
+      res.json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error updating credit limit:", error);
-      res.status(500).json({ message: "Failed to update credit limit" });
+      res.status(500).json({ message: "Falha ao atualizar limite de créditos" });
     }
   });
 
@@ -120,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching credit transactions:", error);
-      res.status(500).json({ message: "Failed to fetch credit transactions" });
+      res.status(500).json({ message: "Falha ao buscar transações de créditos" });
     }
   });
 
@@ -129,10 +155,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const user = await storage.blockUser(id);
-      res.json(user);
+      res.json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error blocking user:", error);
-      res.status(500).json({ message: "Failed to block user" });
+      res.status(500).json({ message: "Falha ao bloquear usuário" });
     }
   });
 
@@ -140,10 +166,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const user = await storage.unblockUser(id);
-      res.json(user);
+      res.json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error unblocking user:", error);
-      res.status(500).json({ message: "Failed to unblock user" });
+      res.status(500).json({ message: "Falha ao desbloquear usuário" });
     }
   });
 
