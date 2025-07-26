@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, LogIn, UserPlus, Shield, Lock } from "lucide-react";
+import { MapPin, LogIn, UserPlus, Shield, Lock } from "lucide-react";
 
 export default function AuthPage() {
   const { toast } = useToast();
@@ -127,9 +127,9 @@ export default function AuthPage() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-6">
-            <Users className="text-white text-2xl" />
+            <MapPin className="text-white text-2xl" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Sistema de Gerenciamento</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Sistema B2B</h2>
           <p className="text-gray-600">Faça login ou crie uma nova conta</p>
         </div>
         

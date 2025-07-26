@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
 import HomePage from "@/pages/home-page";
+import BlockedUserPage from "@/pages/blocked-user-page";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -27,6 +28,9 @@ function Router() {
     <Switch>
       {!isAuthenticated ? (
         <Route path="/" component={AuthPage} />
+      ) : user?.status === "blocked" ? (
+        // Se usuário estiver bloqueado, sempre redirecionar para página de bloqueado
+        <Route path="*" component={BlockedUserPage} />
       ) : (
         <>
           <Route path="/admin" component={AdminDashboard} />
