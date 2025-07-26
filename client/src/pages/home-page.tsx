@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
-import { MapPin, Search, Loader2, History, LogOut, Coins } from "lucide-react";
+import { MapPin, Search, Loader2, History, LogOut, Coins, Download, Clock } from "lucide-react";
 import type { Search as SearchType } from "@shared/schema";
 
 // Schema for form validation
@@ -63,11 +63,29 @@ export default function HomePage() {
     },
   });
 
-  // Fetch user searches
+  // Fetch user searches with polling for unfinished searches
   const { data: searches = [], isLoading: searchesLoading } = useQuery<SearchType[]>({
     queryKey: ["/api/searches"],
     enabled: !!user,
     retry: false,
+    refetchInterval: (data) => {
+      if (!data || !Array.isArray(data)) return false;
+      
+      const now = new Date();
+      const hasUnfinishedSearches = data.some(search => {
+        if (search.finalizado) return false;
+        
+        const searchDate = new Date(search.createdAt);
+        const hoursDiff = (now.getTime() - searchDate.getTime()) / (1000 * 60 * 60);
+        
+        // Don't poll if search is older than 6 hours
+        if (hoursDiff > 6) return false;
+        
+        return true;
+      });
+      
+      return hasUnfinishedSearches ? 30000 : false; // Poll every 30 seconds if there are unfinished searches
+    },
   });
 
   // Fetch search cost setting
@@ -144,6 +162,45 @@ export default function HomePage() {
     setCepData(null);
   };
 
+  // Download function for completed searches
+  const downloadSearchResults = async (search: SearchType) => {
+    try {
+      const response = await fetch(
+        `https://autowebhook.hooks.digital/webhook/3a9d397e-ae0c-4dd8-812e-812e1b8382af?id=${search.id}`
+      );
+      
+      if (!response.ok) {
+        throw new Error("Falha ao baixar o arquivo");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      
+      // Format filename: [SEGMENTO] - Endereço Completo - DD-MM-YYYY
+      const date = new Date(search.createdAt || new Date());
+      const formattedDate = date.toLocaleDateString("pt-BR").replace(/\//g, "-");
+      link.download = `[${search.segment}] - ${search.address} - ${formattedDate}.xlsx`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download realizado",
+        description: "Arquivo baixado com sucesso!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro no download",
+        description: "Não foi possível baixar o arquivo. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Search mutation
   const searchMutation = useMutation({
     mutationFn: async (data: SearchData) => {
@@ -196,11 +253,18 @@ export default function HomePage() {
     },
     onSuccess: (result) => {
       if (result.success) {
+        // Reset form inputs
+        form.reset({
+          address: "",
+          segment: "",
+        });
+        setCepData(null);
+        
         queryClient.invalidateQueries({ queryKey: ["/api/searches"] });
         queryClient.invalidateQueries({ queryKey: ["/api/user"] });
         toast({
-          title: "Busca realizada com sucesso",
-          description: `Busca concluída! ${searchCost} créditos foram utilizados.`,
+          title: "Busca iniciada com sucesso",
+          description: `Busca iniciada! ${searchCost} créditos foram utilizados. Acompanhe o progresso no histórico.`,
         });
       } else {
         toast({
@@ -448,30 +512,65 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {searches.map((search: SearchType) => (
-                      <div key={search.id} className="border rounded-lg p-4 space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{search.address}</p>
-                            <p className="text-sm text-gray-600">Segmento: {search.segment}</p>
+                    {searches.map((search: SearchType) => {
+                      const searchDate = new Date(search.createdAt || new Date());
+                      const now = new Date();
+                      const hoursDiff = (now.getTime() - searchDate.getTime()) / (1000 * 60 * 60);
+                      const isOldSearch = hoursDiff > 6;
+                      
+                      return (
+                        <div key={search.id} className="border rounded-lg p-4 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">{search.address}</p>
+                              <p className="text-sm text-gray-600">Segmento: {search.segment}</p>
+                            </div>
+                            <div className="text-right flex flex-col items-end gap-2">
+                              <Badge variant="outline">
+                                -{search.creditsUsed} créditos
+                              </Badge>
+                              
+                              {/* Status Badge */}
+                              <div className="flex items-center gap-2">
+                                {search.finalizado ? (
+                                  <>
+                                    <Badge variant="default" className="bg-green-500">
+                                      Finalizada
+                                    </Badge>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => downloadSearchResults(search)}
+                                      className="p-1 h-8 w-8"
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                ) : isOldSearch ? (
+                                  <Badge variant="destructive">
+                                    Expirada
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Processando
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <Badge variant="outline" className="mb-1">
-                              -{search.creditsUsed} créditos
-                            </Badge>
-                            <p className="text-xs text-gray-500">
-                              {search.createdAt ? new Date(search.createdAt).toLocaleString('pt-BR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              }) : '-'}
-                            </p>
-                          </div>
+                          <p className="text-xs text-gray-500">
+                            {search.createdAt ? new Date(search.createdAt).toLocaleString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }) : '-'}
+                          </p>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

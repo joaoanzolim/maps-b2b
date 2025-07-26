@@ -66,6 +66,7 @@ export const searches = pgTable("searches", {
   address: text("address").notNull(),
   segment: text("segment").notNull(),
   creditsUsed: integer("credits_used").notNull(),
+  finalizado: boolean("finalizado").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
