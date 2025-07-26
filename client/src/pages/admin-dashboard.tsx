@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import CreditModal from "@/components/credit-modal";
 import BlockUserModal from "@/components/block-user-modal";
+import CreateUserModal from "@/components/create-user-modal";
 import {
   Users,
   UserCheck,
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("dashboard");
 
@@ -139,8 +141,17 @@ export default function AdminDashboard() {
     `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleLogout = () => {
-    window.location.href = "/api/logout";
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/logout");
+      window.location.href = "/";
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao fazer logout.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getInitials = (user: User) => {
@@ -273,6 +284,13 @@ export default function AdminDashboard() {
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             </div>
+            <Button 
+              onClick={() => setCreateUserModalOpen(true)}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Criar Usuário</span>
+            </Button>
           </div>
         </div>
       </div>
@@ -603,6 +621,11 @@ export default function AdminDashboard() {
         user={selectedUser}
         onConfirm={confirmBlockUser}
         isLoading={blockUserMutation.isPending}
+      />
+      
+      <CreateUserModal
+        open={createUserModalOpen}
+        onClose={() => setCreateUserModalOpen(false)}
       />
     </div>
   );
