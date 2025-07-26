@@ -86,6 +86,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public user registration route
+  app.post("/api/register", async (req: any, res) => {
+    try {
+      const userData = createUserSchema.parse(req.body);
+      
+      // Force regular user role for public registration
+      userData.role = "regular";
+      
+      const existingUser = await storage.getUserByEmail(userData.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Este email já está cadastrado" });
+      }
+
+      // Get default credits setting
+      const defaultCreditsSetting = await storage.getSystemSetting("default_credits");
+      const defaultCredits = defaultCreditsSetting?.value ? parseInt(defaultCreditsSetting.value) : 100;
+
+      const hashedPassword = await hashPassword(userData.password);
+      const user = await storage.createUser({
+        ...userData,
+        password: hashedPassword,
+        credits: defaultCredits,
+      });
+
+      res.status(201).json({ ...user, password: undefined });
+    } catch (error) {
+      console.error("Error registering user:", error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Dados inválidos. Verifique os campos obrigatórios." });
+      } else {
+        res.status(500).json({ message: "Erro interno do servidor. Tente novamente." });
+      }
+    }
+  });
+
   // User creation route (admin only)
   app.post("/api/users", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
@@ -93,22 +128,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
-        return res.status(400).json({ message: "Email já cadastrado" });
+        return res.status(400).json({ message: "Este email já está cadastrado" });
       }
+
+      // Get default credits setting
+      const defaultCreditsSetting = await storage.getSystemSetting("default_credits");
+      const defaultCredits = defaultCreditsSetting?.value ? parseInt(defaultCreditsSetting.value) : 100;
 
       const hashedPassword = await hashPassword(userData.password);
       const user = await storage.createUser({
         ...userData,
         password: hashedPassword,
+        credits: userData.role === "admin" ? 0 : defaultCredits, // Admin não precisa de créditos
       });
 
       res.status(201).json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error creating user:", error);
       if (error instanceof z.ZodError) {
-        res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+        res.status(400).json({ message: "Dados inválidos. Verifique os campos obrigatórios." });
       } else {
-        res.status(500).json({ message: "Falha ao criar usuário" });
+        res.status(500).json({ message: "Erro interno do servidor. Tente novamente." });
       }
     }
   });

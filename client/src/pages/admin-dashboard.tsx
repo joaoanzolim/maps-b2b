@@ -67,7 +67,12 @@ export default function AdminDashboard() {
   });
 
   // Fetch user stats
-  const { data: stats = {} } = useQuery<{
+  const { data: stats = {
+    totalUsers: 0,
+    activeUsers: 0,
+    blockedUsers: 0,
+    totalCredits: 0
+  } } = useQuery<{
     totalUsers: number;
     activeUsers: number;
     blockedUsers: number;
@@ -225,7 +230,7 @@ export default function AdminDashboard() {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total de Usuários</dt>
-                  <dd className="text-2xl font-bold text-gray-900">{stats?.totalUsers || 0}</dd>
+                  <dd className="text-2xl font-bold text-gray-900">{stats.totalUsers}</dd>
                 </dl>
               </div>
             </div>
@@ -241,7 +246,7 @@ export default function AdminDashboard() {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Usuários Ativos</dt>
-                  <dd className="text-2xl font-bold text-gray-900">{stats?.activeUsers || 0}</dd>
+                  <dd className="text-2xl font-bold text-gray-900">{stats.activeUsers}</dd>
                 </dl>
               </div>
             </div>
@@ -257,7 +262,7 @@ export default function AdminDashboard() {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Usuários Bloqueados</dt>
-                  <dd className="text-2xl font-bold text-gray-900">{stats?.blockedUsers || 0}</dd>
+                  <dd className="text-2xl font-bold text-gray-900">{stats.blockedUsers}</dd>
                 </dl>
               </div>
             </div>
@@ -273,7 +278,7 @@ export default function AdminDashboard() {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total de Créditos</dt>
-                  <dd className="text-2xl font-bold text-gray-900">{stats?.totalCredits || 0}</dd>
+                  <dd className="text-2xl font-bold text-gray-900">{stats.totalCredits}</dd>
                 </dl>
               </div>
             </div>
@@ -572,7 +577,7 @@ export default function AdminDashboard() {
               className="w-full group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
             >
               <MapPin className="mr-3 h-5 w-5 text-gray-400" />
-              Acessar B2B
+              Acessar Sistema B2B
             </button>
           </div>
           

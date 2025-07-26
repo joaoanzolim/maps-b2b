@@ -29,11 +29,8 @@ function Router() {
         <Route path="/" component={AuthPage} />
       ) : (
         <>
-          {user?.role === "admin" ? (
-            <Route path="/" component={AdminDashboard} />
-          ) : (
-            <Route path="/" component={HomePage} />
-          )}
+          <Route path="/admin" component={AdminDashboard} />
+          <Route path="/" component={HomePage} />
         </>
       )}
       <Route component={NotFound} />

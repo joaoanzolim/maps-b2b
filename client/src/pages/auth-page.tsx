@@ -54,9 +54,18 @@ export default function AuthPage() {
       window.location.reload();
     },
     onError: (error: any) => {
+      let errorMessage = "Credenciais inválidas";
+      if (error.message?.includes("401")) {
+        errorMessage = "Email ou senha incorretos";
+      } else if (error.message?.includes("400")) {
+        errorMessage = "Dados inválidos. Verifique os campos";
+      } else if (error.message?.includes("500")) {
+        errorMessage = "Erro interno do servidor. Tente novamente";
+      }
+      
       toast({
         title: "Erro no login",
-        description: error.message || "Credenciais inválidas",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -65,20 +74,34 @@ export default function AuthPage() {
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: async (data: CreateUserData) => {
-      const response = await apiRequest("POST", "/api/users", data);
+      const response = await apiRequest("POST", "/api/register", data);
       return response.json();
     },
     onSuccess: (user) => {
+      queryClient.setQueryData(["/api/user"], user);
       toast({
-        title: "Usuário criado com sucesso!",
-        description: `Usuário ${user.firstName} foi criado.`,
+        title: "Conta criada com sucesso!",
+        description: `Bem-vindo, ${user.firstName}! Sua conta foi criada e você já está logado.`,
       });
+      window.location.reload();
       createUserForm.reset();
     },
     onError: (error: any) => {
+      let errorMessage = "Erro ao criar conta. Tente novamente.";
+      
+      if (error.message?.includes("Este email já está cadastrado")) {
+        errorMessage = "Este email já está cadastrado. Tente fazer login ou use outro email.";
+      } else if (error.message?.includes("Dados inválidos")) {
+        errorMessage = "Verifique se todos os campos foram preenchidos corretamente.";
+      } else if (error.message?.includes("400")) {
+        errorMessage = "Dados inválidos. Verifique os campos obrigatórios.";
+      } else if (error.message?.includes("500")) {
+        errorMessage = "Erro interno do servidor. Tente novamente em alguns minutos.";
+      }
+      
       toast({
-        title: "Erro ao criar usuário",
-        description: error.message || "Falha ao criar usuário",
+        title: "Erro ao criar conta",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -228,26 +251,7 @@ export default function AuthPage() {
                     )}
                   </div>
                   
-                  <div>
-                    <Label htmlFor="role">Tipo de Usuário</Label>
-                    <Select 
-                      onValueChange={(value) => createUserForm.setValue("role", value as "admin" | "regular")}
-                      defaultValue="regular"
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Selecione o tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="regular">Usuário Regular</SelectItem>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {createUserForm.formState.errors.role && (
-                      <p className="text-sm text-red-600 mt-1">
-                        {createUserForm.formState.errors.role.message}
-                      </p>
-                    )}
-                  </div>
+                  {/* Role is always 'regular' for public registration */}
                   
                   <Button 
                     type="submit"
