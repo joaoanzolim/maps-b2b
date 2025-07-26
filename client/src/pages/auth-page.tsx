@@ -18,6 +18,13 @@ export default function AuthPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("login");
 
+  // Reset forms when switching tabs
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    loginForm.reset();
+    createUserForm.reset();
+  };
+
   // Login form
   const loginForm = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
@@ -94,7 +101,7 @@ export default function AuthPage() {
       } else if (error.message?.includes("Dados inválidos")) {
         errorMessage = "Verifique se todos os campos foram preenchidos corretamente.";
       } else if (error.message?.includes("400")) {
-        errorMessage = "Dados inválidos. Verifique os campos obrigatórios.";
+        errorMessage = "Este email já está cadastrado. Tente fazer login ou use outro email.";
       } else if (error.message?.includes("500")) {
         errorMessage = "Erro interno do servidor. Tente novamente em alguns minutos.";
       }
@@ -128,7 +135,7 @@ export default function AuthPage() {
         
         <Card className="bg-white shadow-xl border border-gray-100">
           <CardContent className="py-8 px-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login" className="flex items-center space-x-2">
                   <LogIn className="h-4 w-4" />

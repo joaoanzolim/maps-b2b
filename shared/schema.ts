@@ -103,6 +103,7 @@ export const createUserSchema = z.object({
   lastName: z.string().min(1, "Sobrenome é obrigatório"),
   role: z.enum(["admin", "regular"]).default("regular"),
   credits: z.number().optional(),
+  status: z.enum(["active", "blocked"]).optional(),
 });
 
 export const insertCreditTransactionSchema = createInsertSchema(creditTransactions).omit({

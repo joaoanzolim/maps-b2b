@@ -70,6 +70,7 @@ export default function CreateUserModal({ open, onClose }: CreateUserModalProps)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/all"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/stats"] });
       toast({
         title: "Usuário Criado",

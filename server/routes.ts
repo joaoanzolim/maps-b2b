@@ -99,16 +99,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Este email já está cadastrado" });
       }
 
-      // Get default credits setting
+      // Get default credits setting - make it accessible without authentication
       const defaultCreditsSetting = await storage.getSystemSetting("default_credits");
-      const defaultCredits = defaultCreditsSetting?.value ? parseInt(defaultCreditsSetting.value) : 100;
+      const defaultCredits = defaultCreditsSetting?.value ? parseInt(defaultCreditsSetting.value) : 1000;
 
       const hashedPassword = await hashPassword(userData.password);
-      const user = await storage.createUser({
-        ...userData,
+      
+      // Create user with explicit credits assignment
+      const userToCreate = {
+        email: userData.email,
         password: hashedPassword,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        role: "regular" as const,
         credits: defaultCredits,
-      });
+        status: "active" as const,
+      };
+      
+      const user = await storage.createUser(userToCreate);
 
       res.status(201).json({ ...user, password: undefined });
     } catch (error) {
