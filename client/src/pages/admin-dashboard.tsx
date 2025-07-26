@@ -37,6 +37,7 @@ export default function AdminDashboard() {
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("dashboard");
 
   // Redirect if not admin
   useEffect(() => {
@@ -168,6 +169,259 @@ export default function AdminDashboard() {
     unblockUserMutation.mutate(user.id);
   };
 
+  // Render functions for different sections
+  const renderDashboardContent = () => (
+    <>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Users className="h-8 w-8 text-blue-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total de Usuários</dt>
+                  <dd className="text-2xl font-bold text-gray-900">{stats?.totalUsers || 0}</dd>
+                </dl>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <UserCheck className="h-8 w-8 text-green-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Usuários Ativos</dt>
+                  <dd className="text-2xl font-bold text-gray-900">{stats?.activeUsers || 0}</dd>
+                </dl>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <UserX className="h-8 w-8 text-red-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Usuários Bloqueados</dt>
+                  <dd className="text-2xl font-bold text-gray-900">{stats?.blockedUsers || 0}</dd>
+                </dl>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Coins className="h-8 w-8 text-yellow-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total de Créditos</dt>
+                  <dd className="text-2xl font-bold text-gray-900">{stats?.totalCredits || 0}</dd>
+                </dl>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activity */}
+      <Card>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Visão Geral do Sistema</h3>
+        </div>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">Dashboard Principal</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Bem-vindo ao painel administrativo. Use o menu lateral para navegar entre as seções.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const renderUsersContent = () => (
+    <Card>
+      <div className="px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium text-gray-900">Usuários do Sistema</h3>
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Buscar usuários..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2"
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Usuário
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Créditos
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Data de Cadastro
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Ações
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filteredUsers.map((user: User) => (
+              <tr key={user.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 h-10 w-10">
+                      <Avatar>
+                        <AvatarImage src={user.profileImageUrl || undefined} />
+                        <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium text-sm">
+                          {getInitials(user)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    <div className="ml-4">
+                      <div className="text-sm font-medium text-gray-900">
+                        {user.firstName} {user.lastName}
+                      </div>
+                      <div className="text-sm text-gray-500">{user.email}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <Badge variant={user.status === "active" ? "default" : "destructive"}>
+                    {user.status === "active" ? "Ativo" : "Bloqueado"}
+                  </Badge>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {user.credits || 0}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {user.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditCredits(user)}
+                      className="text-green-600 hover:text-green-700"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Créditos
+                    </Button>
+                    {user.status === "active" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleBlockUser(user)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Ban className="h-4 w-4 mr-1" />
+                        Bloquear
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnblockUser(user)}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <Unlock className="h-4 w-4 mr-1" />
+                        Desbloquear
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredUsers.length === 0 && (
+          <div className="text-center py-12">
+            <Users className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum usuário encontrado</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {searchQuery ? 'Tente ajustar os filtros de busca.' : 'Ainda não há usuários cadastrados no sistema.'}
+            </p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+
+  const renderCreditsContent = () => (
+    <Card>
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900">Gestão de Créditos</h3>
+      </div>
+      <CardContent className="p-6">
+        <div className="text-center">
+          <Coins className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Gestão de Créditos</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Para gerenciar créditos de usuários específicos, vá para a seção "Gerenciar Usuários" e clique no botão "Créditos" do usuário desejado.
+          </p>
+          <Button 
+            onClick={() => setActiveSection("users")}
+            className="mt-4"
+          >
+            <Users className="mr-2 h-4 w-4" />
+            Ir para Usuários
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderReportsContent = () => (
+    <Card>
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900">Relatórios do Sistema</h3>
+      </div>
+      <CardContent className="p-6">
+        <div className="text-center">
+          <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Relatórios</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Seção de relatórios em desenvolvimento. Em breve você poderá visualizar estatísticas detalhadas e exportar dados.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -198,22 +452,58 @@ export default function AdminDashboard() {
         
         <nav className="mt-8">
           <div className="px-4 space-y-2">
-            <a href="#" className="bg-blue-50 text-blue-700 group flex items-center px-4 py-3 text-sm font-medium rounded-lg">
-              <BarChart3 className="mr-3 h-5 w-5 text-blue-500" />
+            <button 
+              onClick={() => setActiveSection("dashboard")}
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                activeSection === "dashboard" 
+                  ? "bg-blue-50 text-blue-700" 
+                  : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <BarChart3 className={`mr-3 h-5 w-5 ${
+                activeSection === "dashboard" ? "text-blue-500" : "text-gray-400"
+              }`} />
               Dashboard
-            </a>
-            <a href="#" className="text-gray-700 hover:bg-gray-50 group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors">
-              <Users className="mr-3 h-5 w-5 text-gray-400" />
+            </button>
+            <button 
+              onClick={() => setActiveSection("users")}
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                activeSection === "users" 
+                  ? "bg-blue-50 text-blue-700" 
+                  : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <Users className={`mr-3 h-5 w-5 ${
+                activeSection === "users" ? "text-blue-500" : "text-gray-400"
+              }`} />
               Gerenciar Usuários
-            </a>
-            <a href="#" className="text-gray-700 hover:bg-gray-50 group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors">
-              <Coins className="mr-3 h-5 w-5 text-gray-400" />
+            </button>
+            <button 
+              onClick={() => setActiveSection("credits")}
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                activeSection === "credits" 
+                  ? "bg-blue-50 text-blue-700" 
+                  : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <Coins className={`mr-3 h-5 w-5 ${
+                activeSection === "credits" ? "text-blue-500" : "text-gray-400"
+              }`} />
               Créditos
-            </a>
-            <a href="#" className="text-gray-700 hover:bg-gray-50 group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors">
-              <BarChart3 className="mr-3 h-5 w-5 text-gray-400" />
+            </button>
+            <button 
+              onClick={() => setActiveSection("reports")}
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                activeSection === "reports" 
+                  ? "bg-blue-50 text-blue-700" 
+                  : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <BarChart3 className={`mr-3 h-5 w-5 ${
+                activeSection === "reports" ? "text-blue-500" : "text-gray-400"
+              }`} />
               Relatórios
-            </a>
+            </button>
           </div>
           
           <div className="mt-auto absolute bottom-4 left-4 right-4">
@@ -259,7 +549,12 @@ export default function AdminDashboard() {
                 >
                   <Menu className="h-6 w-6" />
                 </Button>
-                <h1 className="ml-4 lg:ml-0 text-2xl font-semibold text-gray-900">Gerenciamento de Usuários</h1>
+                <h1 className="ml-4 lg:ml-0 text-2xl font-semibold text-gray-900">
+                  {activeSection === "dashboard" && "Dashboard"}
+                  {activeSection === "users" && "Gerenciamento de Usuários"}
+                  {activeSection === "credits" && "Gestão de Créditos"}
+                  {activeSection === "reports" && "Relatórios"}
+                </h1>
               </div>
               
               <div className="flex items-center space-x-4">
@@ -279,203 +574,10 @@ export default function AdminDashboard() {
         {/* Page Content */}
         <main className="py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <Users className="h-8 w-8 text-blue-600" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Total de Usuários</dt>
-                        <dd className="text-2xl font-bold text-gray-900">{stats?.totalUsers || 0}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <UserCheck className="h-8 w-8 text-green-600" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Usuários Ativos</dt>
-                        <dd className="text-2xl font-bold text-gray-900">{stats?.activeUsers || 0}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <UserX className="h-8 w-8 text-red-600" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Usuários Bloqueados</dt>
-                        <dd className="text-2xl font-bold text-gray-900">{stats?.blockedUsers || 0}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <Coins className="h-8 w-8 text-yellow-600" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Total de Créditos</dt>
-                        <dd className="text-2xl font-bold text-gray-900">{stats?.totalCredits || 0}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Users Table */}
-            <Card>
-              <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-900">Usuários do Sistema</h3>
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="Buscar usuários..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 pr-4 py-2"
-                      />
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Usuário
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Créditos
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Data de Cadastro
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredUsers.map((user: User) => (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10">
-                              <Avatar>
-                                <AvatarImage src={user.profileImageUrl || undefined} />
-                                <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium text-sm">
-                                  {getInitials(user)}
-                                </AvatarFallback>
-                              </Avatar>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {user.firstName} {user.lastName}
-                              </div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge 
-                            variant={user.status === "active" ? "default" : "destructive"}
-                            className={user.status === "active" ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}
-                          >
-                            {user.status === "active" ? "Ativo" : "Bloqueado"}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Coins className="text-yellow-500 mr-2 h-4 w-4" />
-                            <span className="text-sm font-medium text-gray-900">{user.credits}</span>
-                            <span className="text-xs text-gray-500 ml-1">/ {user.creditLimit}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditCredits(user)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            <Coins className="mr-1 h-4 w-4" />
-                            Créditos
-                          </Button>
-                          {user.status === "active" ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleBlockUser(user)}
-                              className="text-red-600 hover:text-red-900"
-                              disabled={blockUserMutation.isPending}
-                            >
-                              <Ban className="mr-1 h-4 w-4" />
-                              Bloquear
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleUnblockUser(user)}
-                              className="text-green-600 hover:text-green-900"
-                              disabled={unblockUserMutation.isPending}
-                            >
-                              <Unlock className="mr-1 h-4 w-4" />
-                              Desbloquear
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              
-              {filteredUsers.length === 0 && !usersLoading && (
-                <div className="text-center py-12">
-                  <Users className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum usuário encontrado</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {searchQuery ? "Tente ajustar sua busca." : "Ainda não há usuários cadastrados."}
-                  </p>
-                </div>
-              )}
-            </Card>
+            {activeSection === "dashboard" && renderDashboardContent()}
+            {activeSection === "users" && renderUsersContent()} 
+            {activeSection === "credits" && renderCreditsContent()}
+            {activeSection === "reports" && renderReportsContent()}
           </div>
         </main>
       </div>
