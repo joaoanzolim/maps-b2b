@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { User } from "@shared/schema";
 
 export function useAuth() {
-  const { data: user, isLoading, error, isFetched } = useQuery<User>({
+  const { data: user, isLoading, error } = useQuery<User>({
     queryKey: ["/api/user"],
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -14,12 +14,9 @@ export function useAuth() {
   // If there's an error (like 401), consider user as not authenticated
   const isAuthenticated = !!user && !error;
 
-  // Só considera como carregando se nunca foi buscado antes
-  const isReallyLoading = isLoading && !isFetched;
-
   return {
     user,
-    isLoading: isReallyLoading,
+    isLoading,
     isAuthenticated,
   };
 }
