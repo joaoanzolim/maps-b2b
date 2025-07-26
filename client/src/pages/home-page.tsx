@@ -380,7 +380,17 @@ export default function HomePage() {
         <p className="text-gray-600">Busque e extraia dados de estabelecimentos por localização</p>
       </div>
 
-      <Tabs defaultValue="search" className="w-full">
+      <Tabs defaultValue="search" className="w-full" onValueChange={(value) => {
+        // Limpar inputs quando alternar entre abas
+        if (value === "search" || value === "history") {
+          form.reset({
+            address: "",
+            segment: "",
+          });
+          setCepData(null);
+          setSearchType("cep");
+        }
+      }}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="search">Realizar Busca</TabsTrigger>
           <TabsTrigger value="history">Histórico de Buscas</TabsTrigger>

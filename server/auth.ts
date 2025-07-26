@@ -78,7 +78,7 @@ export function setupAuth(app: Express) {
             return done(null, false, { message: "Email ou senha incorretos" });
           }
           if (user.status === "blocked") {
-            return done(null, false, { message: "Usuário bloqueado" });
+            return done(null, false, { message: "Seu usuário está bloqueado, entre em contato com o suporte." });
           }
           return done(null, user);
         } catch (error) {
