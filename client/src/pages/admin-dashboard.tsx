@@ -34,7 +34,7 @@ import {
 import type { User } from "@shared/schema";
 
 export default function AdminDashboard() {
-  const { user: currentUser, isLoading } = useAuth();
+  const { user: currentUser, isLoading } = useAuth() as { user: User | undefined; isLoading: boolean };
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
@@ -502,7 +502,14 @@ export default function AdminDashboard() {
   }
 
   if (!currentUser || currentUser.role !== "admin") {
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando permissões...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -585,16 +592,16 @@ export default function AdminDashboard() {
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center space-x-3">
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src={currentUser.profileImageUrl || undefined} />
+                  <AvatarImage src={currentUser?.profileImageUrl || undefined} />
                   <AvatarFallback className="bg-blue-600 text-white text-sm">
-                    {getInitials(currentUser)}
+                    {currentUser ? getInitials(currentUser) : "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
-                    {currentUser.firstName} {currentUser.lastName}
+                    {currentUser?.firstName} {currentUser?.lastName}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">{currentUser.email}</p>
+                  <p className="text-xs text-gray-500 truncate">{currentUser?.email}</p>
                 </div>
               </div>
               <button 

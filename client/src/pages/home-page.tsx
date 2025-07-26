@@ -23,7 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { MapPin, Search, Loader2, History, LogOut, Coins, Download, Clock, RefreshCw, Menu, Settings, BarChart3 } from "lucide-react";
 import UserSettings from "@/components/user-settings";
-import type { Search as SearchType } from "@shared/schema";
+import type { Search as SearchType, User } from "@shared/schema";
 import { API_CONFIG } from "@shared/config";
 
 // Schema for form validation
@@ -52,7 +52,7 @@ interface ViaCepResponse {
 
 export default function HomePage() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user } = useAuth() as { user: User | undefined };
   const queryClient = useQueryClient();
   const [searchType, setSearchType] = useState<"cep" | "endereco">("cep");
   const [cepData, setCepData] = useState<ViaCepResponse | null>(null);
@@ -356,7 +356,7 @@ export default function HomePage() {
   };
 
   // Helper function to get user initials
-  const getInitials = (user: any) => {
+  const getInitials = (user: User) => {
     const firstName = user?.firstName || "";
     const lastName = user?.lastName || "";
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U";
@@ -365,10 +365,10 @@ export default function HomePage() {
   const handleLogout = async () => {
     try {
       await apiRequest("POST", "/api/logout");
-      window.location.href = "/auth";
+      window.location.href = "/";
     } catch (error) {
       console.error("Logout error:", error);
-      window.location.href = "/auth";
+      window.location.href = "/";
     }
   };
 
@@ -455,7 +455,7 @@ export default function HomePage() {
                             {searchType === "cep" ? "CEP" : "Endereço completo"}
                           </FormLabel>
                           <FormControl>
-                            <div className="flex space-x-2">
+                            <div className="relative">
                               <Input
                                 placeholder={
                                   searchType === "cep"
@@ -467,24 +467,23 @@ export default function HomePage() {
                                 onChange={(e) => {
                                   const value = searchType === "cep" ? formatCep(e.target.value) : e.target.value;
                                   field.onChange(value);
+                                  
+                                  // Auto-search CEP when complete
+                                  if (searchType === "cep") {
+                                    const numbers = e.target.value.replace(/\D/g, "");
+                                    if (numbers.length === 8) {
+                                      searchCep(value);
+                                    } else if (numbers.length < 8) {
+                                      setCepData(null); // Clear CEP data if incomplete
+                                    }
+                                  }
                                 }}
                                 data-testid="input-address"
                               />
-                              {searchType === "cep" && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => searchCep(field.value)}
-                                  disabled={isSearchingCep || field.value.replace(/\D/g, "").length !== 8}
-                                  data-testid="button-searchCep"
-                                >
-                                  {isSearchingCep ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <MapPin className="h-4 w-4" />
-                                  )}
-                                </Button>
+                              {searchType === "cep" && isSearchingCep && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                  <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                </div>
                               )}
                             </div>
                           </FormControl>
@@ -710,7 +709,11 @@ export default function HomePage() {
   );
 
   if (!user) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   return (
