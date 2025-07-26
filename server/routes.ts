@@ -117,7 +117,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const user = await storage.createUser(userToCreate);
 
-      res.status(201).json({ ...user, password: undefined });
+      // Auto-login the user after successful registration
+      req.login(user, (err: any) => {
+        if (err) {
+          console.error("Auto-login error after registration:", err);
+          return res.status(500).json({ message: "Conta criada, mas falha no login automático" });
+        }
+
+        res.status(201).json({ ...user, password: undefined });
+      });
     } catch (error) {
       console.error("Error registering user:", error);
       if (error instanceof z.ZodError) {
