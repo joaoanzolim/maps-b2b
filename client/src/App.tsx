@@ -13,9 +13,9 @@ import NotFound from "@/pages/not-found";
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
-  // Não mostrar tela de carregamento se não há dados sendo carregados
+  // Durante o carregamento inicial, mostrar uma div vazia para manter a estrutura
   if (isLoading) {
-    return null; // Retorna null em vez de tela de carregamento para evitar flash
+    return <div className="min-h-screen bg-gray-50"></div>;
   }
 
   // Se usuário não está autenticado, sempre mostrar AuthPage
@@ -42,7 +42,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="min-h-screen">
+        <div className="min-h-screen transition-all duration-0">
           <Router />
           <Toaster />
         </div>
